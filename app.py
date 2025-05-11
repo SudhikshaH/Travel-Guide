@@ -4,7 +4,7 @@ from geopy.distance import geodesic
 
 app=Flask(__name__)
 client=MongoClient("mongodb://localhost:27017/")
-db=client["test_db"]
+db=client["rnsit_db"]
 landmarks_col=db["landmarks"]
 places_col=db["places"]
 
@@ -46,7 +46,10 @@ def displayLandmarks():
         return jsonify({"landmarks":landmarks_filterd})
     
     return jsonify({"error":"Unable to locate place"}),400
-
-
+"""
+@app.route("/calulate-path", method=["POST"])
+def calculatePath():
+    data=request.json
+"""
 if __name__=='__main__':
     app.run(debug=True)

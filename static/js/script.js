@@ -1,77 +1,82 @@
-function getCurrentLocationAndFetchPlace(){
+window.onload = getCurrentLocation;
+
+function getCurrentLocation(){
     if(navigator.geolocation){
         navigator.geolocation.getCurrentPosition(
         function(pos){
             const lat =pos.coords.latitude;
             const lon=pos.coords.longitude;
-
+            document.getElementById("status").innerText = "Fetching your location..."; 
+        //send location to flask
         fetch('/identify-place',{
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({latitude:lat, longitude:lon}),
         })
         .then(response=>response.json())
         .then(data => {
-            if (data.Place_Name) {
+            if (data.Place_Name && data.Place_ID) 
               document.getElementById("status").innerText += `\nYou are in: ${data.Place_Name}`;
-
-        fetch('/get-landmarks',{
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body:JSON.stringify({Place_ID:data.Place_ID}),
+                identifyPlace(data.Place_ID);    
         })
-        .then(response=>response.json())
-        .then(LandmarkData =>{
-            const ul = document.getElementById("ldmrkList");
-            let formHTML = "<form id='landmarkForm'>"; // Start the form
-            if (LandmarkData && LandmarkData.landmarks) {
-            LandmarkData.landmarks.forEach(landmrk=>{
-                formHTML += `
-                        <input type="checkbox" id="landmark-${landmrk.Landmark}" name="landmarks" value="${landmrk.Landmark}">
-                        <label for="landmark-${landmrk.Landmark}">${landmrk.Landmark}</label>`;
-            });
-            }
-            else{
-                formHTML += "<li>No landmarks found in this place.</li>";
-            }
-            formHTML += "<button type='submit'>Calculate Path</button></form>"; // Close the form
-            ul.innerHTML = formHTML;
-        });
-        }
-        else{
-            document.getElementById("status").innerText+= '\nUnable to detect place.';
-        }
-    })
-    .catch(error => {
-        console.error("Error identifying place:", error);
-        document.getElementById("status").innerText+= '\nError identifying place.';
-    });
-},
-
-function (error) {
-    document.getElementById("status").innerText = "Location access denied.";
-  }
-);
-} else {
-document.getElementById("status").innerText = "Geolocation not supported.";
+        })
+    }
+    else{
+        document.getElementById("status").innerText +='\nGEOLOCATION ACCESS NOT PERMITTED';
+    }
 }
-}
-window.onload = getCurrentLocationAndFetchPlace;
-document.getElementById("landmarkForm").addEventListener("submit", function(e) {
-    e.preventDefault();
-    const selected = Array.from(document.querySelectorAll("input[name='landmarks']:checked"))
-                        .map(cb => cb.value);
-    fetch("/calculate-path", {
-        method: "POST",
+function identifyPlace(Place_ID){
+    fetch('/get-landmarks',{
+        method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({selected_landmarks: selected})
+        body:JSON.stringify({Place_ID:Place_ID}),
     })
-    .then(res => res.json())
-    .then(data => {
-        console.log("Path received:", data);
+    .then(response=>response.json())
+    .then(LandmarkData =>{
+    displayLandmark(LandmarkData);
+    })
+}
+function displayLandmark(Ldata){
+    const ul=document.getElementById("ldmrkList")
+    const container =document.getElementById("landmark")
+    const form =document.createElement("form");
+    form.id="LandmrkForm";
+    if(Ldata && Ldata.landmarks){
+        Ldata.landmarks.forEach(lm=>{
+            const input =document.createElement("input");
+            input.type="checkbox";
+            input.id=`lm-${lm.Landmark}`;
+            input.name="landmarks";
+            input.value=lm.Landmark;
+
+            const label=document.createElement("label");
+            label.setAttribute("for",`lm-${lm.Landmark}`);
+            label.textContent=lm.Landmark;
+
+            const listItem = document.createElement("li"); 
+            listItem.appendChild(input);
+            listItem.appendChild(label);
+            form.appendChild(listItem); 
+        });
+    }
+    else{
+        document.getElementById("status").innerText = "\nNo landmark found";
+    }
+    const btn=document.createElement("button");
+    btn.type="submit";
+    btn.textContent="Continue";//Next step is to calculate path
+    form.appendChild(btn);
+
+    ul.appendChild(form);
+    selectLandmarks();
+}
+/*
+function selectLandmarks(){
+    document.addEventListener("submit",function(event){
+        event.preventDefault();
+        checkbox=document.querySelectorAll("input[name='landmarks']:checked");
+        checkbox=Array.from(checkbox).map(everylm=>everylm.value);
+        fetch()
     });
-});
+}
+*/
