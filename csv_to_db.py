@@ -2,7 +2,7 @@ import pandas as pd
 from pymongo import MongoClient
 df=pd.read_csv("testing_dataset.csv")
 client=MongoClient("mongodb://localhost:27017/")
-db=client["test_db"]
+db=client["rnsit_db"]
 #create 2 collections: places, landmarks
 places_col=db["places"]
 landmarks_col=db["landmarks"]
