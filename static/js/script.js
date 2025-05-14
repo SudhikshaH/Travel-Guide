@@ -22,7 +22,7 @@ function getCurrentLocation(){
         })
     }
     else{
-        document.getElementById("status").innerText +='\nGEOLOCATION ACCESS NOT PERMITTED';
+        document.getElementById("status").innerText +='\nGEO-LOCATION ACCESS NOT PERMITTED';
     }
 }
 function identifyPlace(Place_ID){

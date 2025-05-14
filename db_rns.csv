@@ -1,20 +1,23 @@
-Place_ID,Place_Name,Landmark,Latitude,Longitude
-1,rns institute of technology,Entrance,12.902483010108497,77.51860345267625
-1,rns institute of technology,EC_Department,12.902566619468434,77.5178613761847
-1,rns institute of technology,CSE_Department and MCA,12.90202740028535,77.51782856007439
-1,rns institute of technology,ME_Department,12.901680105958741,77.51914589250318
-1,rns institute of technology,RN Shetty Statue,12.90093589280304,77.51831202837782
-1,rns institute of technology,Mini_Auditorium,12.900785952589153,77.51795712342934
-1,rns institute of technology,Temple,12.899984251027949,77.51844063619873
-1,rns institute of technology,B Grounds,12.899551037717643,77.51602613610642
-1,rns institute of technology,Basketball_Court,12.9020107934052,77.51926926530567
-1,rns institute of technology,Memorial and amphitheatre,12.901662306087834,77.51847523030729
-1,rns institute of technology,Civil and Cyber Security Departments,12.901687863332437,77.51749010621408
-1,rns institute of technology,RNS School Of Architecture,12.901362446805916,77.51761865546659
-1,rns institute of technology,First Grade College,12.90108585415323,77.51752233205559
-1,rns institute of technology,RNS International School,12.90063470772414,77.51675051697693
-1,rns institute of technology,RNS PU College,12.900365838414473,77.51867606392769
-1,rns institute of technology,MBA and Placement Block,12.900996327723952,77.51879179649836
-1,rns institute of technology,EEE_Department,12.9013061461137,77.51929068734196
-1,rns institute of technology,Library,12.900814184951594,77.51780305197556
-2,null,null,23.24,80.23
+Place_ID,Place_Name,Landmark,Latitude,Longitude,Description
+1,rns institute of technology,Entrance,12.902483010108497,77.51860345267625,"Hello, Warm Welcome to R N S Institue of Techonolgy          "
+1,rns institute of technology,EC_Department,12.902566619468434,77.5178613761847,You are at EC Block
+1,rns institute of technology,CSE_Department and MCA,12.90202740028535,77.51782856007439,You are at IT Block
+1,rns institute of technology,ME_Department,12.901680105958741,77.51914589250318,You are at Mechanical Block
+1,rns institute of technology,RN Shetty Statue,12.90093589280304,77.51831202837782,Founder R N shetty statue
+1,rns institute of technology,Mini_Auditorium,12.900785952589153,77.51795712342934,Mini auditorium for webinars
+1,rns institute of technology,Temple,12.899984251027949,77.51844063619873,You have reached temple
+1,rns institute of technology,B Grounds,12.899551037717643,77.51602613610642,You are at B-Grounds
+1,rns institute of technology,Basketball_Court,12.9020107934052,77.51926926530567,This is the basketball court
+1,rns institute of technology,Memorial and amphitheatre,12.901662306087834,77.51847523030729,Amphitheatre of R N S Institue of Technology
+1,rns institute of technology,Civil and Cyber Security Departments,12.901687863332437,77.51749010621408,You are at civil Block
+1,rns institute of technology,RNS School Of Architecture,12.901362446805916,77.51761865546659,You are at architecture Block
+1,rns institute of technology,First Grade College,12.90108585415323,77.51752233205559,You are at First Grade College
+1,rns institute of technology,RNS International School,12.90063470772414,77.51675051697693,You are at RNS International School 
+1,rns institute of technology,RNS PU College,12.900365838414473,77.51867606392769,You are at PU college
+1,rns institute of technology,MBA and Placement Block,12.900996327723952,77.51879179649836,Placement and MBA Block
+1,rns institute of technology,EEE_Department,12.9013061461137,77.51929068734196,You are at EEE Block
+1,rns institute of technology,Library,12.900814184951594,77.51780305197556,Reached Library
+1,rns institute of technology,Center of Examination,12.902303,77.518202,You are at COE
+1,rns institute of technology,Food Court,12.9006809,77.5181814,Reached Food Court
+1,rns institute of technology,Jain Corner and Xerox Center,12.902465,77.519205,Jain corner and xerox center is right next to you
+2,null,null,23.24,80.23,Test case
