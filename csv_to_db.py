@@ -1,3 +1,7 @@
+import os
+if not os.path.exists('db_rns.csv'):
+    print('Error: CSV file not found!')
+    exit(1)
 import pandas as pd
 from pymongo import MongoClient
 df=pd.read_csv("db_rns.csv")

@@ -32,7 +32,7 @@ def identify_place():
         if place: 
             return jsonify({"Place_ID":place["Place_ID"],"Place_Name":place["Place_Name"]})
         return jsonify({"error":"No nearby place found"}), 404
-    return jsonify({"error":"Unable to identify the landmark"}),404
+    return jsonify({"error":"No matching landmark found for the provided coordinates"}),404
             
 @app.route("/get-landmarks", methods=["POST"])
 def displayLandmarks():
