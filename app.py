@@ -1,6 +1,7 @@
 from flask import Flask, render_template,request, jsonify
 from pymongo import MongoClient
 from geopy.distance import geodesic
+from heldKarp import held_karp_path_tsp
 
 app=Flask(__name__)
 client=MongoClient("mongodb://localhost:27017/")
@@ -19,10 +20,9 @@ def identify_place():
     landmarks=list(landmarks_col.find({},{"_id":0}))
     min_dist=float("inf")
     nearest_landmark=None
-    
     for landmrk in landmarks:
        l_coOrd=(landmrk['Latitude'],landmrk['Longitude'])
-       dist=geodesic(usr_coOrd,l_coOrd).meters
+       dist=geodesic(usr_coOrd,l_coOrd).meters #Calculate distance using geodesic formula
        if dist<min_dist:
            min_dist=dist
            nearest_landmark=landmrk
@@ -46,10 +46,36 @@ def displayLandmarks():
         return jsonify({"landmarks":landmarks_filterd})
     
     return jsonify({"error":"Unable to locate place"}),400
-"""
-@app.route("/calulate-path", method=["POST"])
-def calculatePath():
+
+@app.route('/calculate-path', methods=["POST"])
+def calculate_path():
     data=request.json
-"""
+    ldmrk_selected=data.get("landmarks", [])
+    user_loc=data.get("user_location")
+    if not ldmrk_selected or not user_loc:
+        return jsonify({"error":"Missing landmark or user location"}),400
+    start={
+        "Landmark":"user_start",
+        "Latitude":user_loc["Latitude"],
+        "Longitude":user_loc["Longitude"]
+    }
+    nodes=[start]+ldmrk_selected
+    result=held_karp_path_tsp(nodes)
+    print("Shortest Tour Path:", " -> ".join(result["path"]))
+    print(f"Shortest tour cost:{result['distance']}m")
+    result_path=[]
+    for name in result['path']:
+        node=next((n for n in nodes if n["Landmark"].lower()==name.lower()),None)
+        if node:
+            result_path.append({
+                "Landmark":node["Landmark"],
+                "Latitude":node["Latitude"],
+                "Longitude":node["Longitude"]
+            })
+    return jsonify({
+        "path":result["path"],
+        "result_path":result_path,
+        "distance":result["distance"]
+        })
 if __name__=='__main__':
     app.run(debug=True)
