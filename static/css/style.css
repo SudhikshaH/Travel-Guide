@@ -69,3 +69,9 @@ button:hover {
   color: #555;
   margin-top: 15px;
 }
+#mapNav { height: 100vh; }
+  .leaflet-routing-container {
+  background: white;
+  border-radius: 10px;
+  padding: 5px;
+}

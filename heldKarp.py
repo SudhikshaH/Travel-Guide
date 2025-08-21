@@ -40,11 +40,3 @@ def held_karp_path_tsp(landmarks):
 
     final_path = [landmark_indices[i]['Landmark'] for i in best_path]
     return {'path': final_path, 'distance': round(min_cost, 2)}
-"""
-@app.route("/calculate-path", methods=["POST"])
-def calculatePath():
-    data=request.json
-    landmarks=data.get('Landmarks')
-    print(held_karp_path_tsp(landmarks))
-    return held_karp_path_tsp(landmarks)
-""" 

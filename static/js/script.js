@@ -74,8 +74,9 @@ function displayLandmark(Ldata, lat, lon) {
                 }
                 // update path with local lat/lon
                 calculatePath(lat, lon);
+                updateStartButtonState();
             });
-
+            
             ul.appendChild(listItem);
         });
     } else {
@@ -150,8 +151,9 @@ function render_map(placeID, lat, lon) {
                         }
 
                         calculatePath(lat, lon);
+                        updateStartButtonState();
                     });
-
+                    updateStartButtonState();
                     marker.bindTooltip(`<b>${landmark.Landmark}</b>`, {
                         direction: 'top',
                         permanent: false,
@@ -161,17 +163,34 @@ function render_map(placeID, lat, lon) {
                 });
 
                 // Add Start button (only once)
-                if (!document.querySelector("#info button")) {
-                    const startBtn = document.createElement("button");
-                    startBtn.textContent = "Start";
-                    startBtn.style.marginTop = "10px";
-                    startBtn.onclick = function () {
-                        window.location.href = "/navigation"; // redirect to next page
-                    };
-                    document.getElementById("info").appendChild(startBtn);
-                }
+                document.getElementById("startJourneyBtn").onclick = function () {
+                    const payload={
+                    landmarks:selectedLandmarks.map(name=>{
+                        const marker= landmarkMarkers[name];
+                        return{
+                            Landmark:name,
+                            Latitude:marker.getLatLng().lat,
+                            Longitude:marker.getLatLng().lng
+                        };
+                    }),
+                    user_location:{Latitude:lat, Longitude:lon}
+                };
+                fetch("/calculate-path",{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify(payload)
+                })
+                .then(response=>response.json())
+                .then(result=>{
+                sessionStorage.setItem("finalRoute", JSON.stringify(result));
+                window.location.href="/navigation";
+                });
+                };
             }
         });
+}
+function updateStartButtonState() {
+    document.getElementById("startJourneyBtn").disabled = selectedLandmarks.length === 0;
 }
 
 function calculatePath(lat, lon) {
