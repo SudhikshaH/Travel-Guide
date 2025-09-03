@@ -5,13 +5,14 @@
   <title>Margnify - Navigation</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
-  <link rel="stylesheet" href="{{url_for('static',filename='css/style.css')}}"></link>
+  <link rel="stylesheet" href="{{url_for('static',filename='css/style.css')}}">
 </head>
 <body>
   <h2>Navigation Mode</h2>
   <div id="mapNav"></div>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+  <script src="https://unpkg.com/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.js"></script>
   <script src="{{ url_for('static', filename='js/navigation.js') }}"></script>
 </body>
 </html>
