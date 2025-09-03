@@ -86,8 +86,9 @@ function displayLandmark(Ldata, lat, lon) {
                     }
                 }
                 calculatePath(lat, lon);
+                updateStartButtonState();
             });
-
+            
             ul.appendChild(listItem);
         });
     } else {
@@ -184,10 +185,50 @@ function render_map(placeID, lat, lon) {
 
 
                         calculatePath(lat, lon);
+                        updateStartButtonState();
+                    });
+<<<<<<< HEAD
+                });
+=======
+                    updateStartButtonState();
+                    marker.bindTooltip(`<b>${landmark.Landmark}</b>`, {
+                        direction: 'top',
+                        permanent: false,
+                        sticky: true,
+                        opacity: 0.9
                     });
                 });
+
+                // Add Start button (only once)
+                document.getElementById("startJourneyBtn").onclick = function () {
+                    const payload={
+                    landmarks:selectedLandmarks.map(name=>{
+                        const marker= landmarkMarkers[name];
+                        return{
+                            Landmark:name,
+                            Latitude:marker.getLatLng().lat,
+                            Longitude:marker.getLatLng().lng
+                        };
+                    }),
+                    user_location:{Latitude:lat, Longitude:lon}
+                };
+                fetch("/calculate-path",{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify(payload)
+                })
+                .then(response=>response.json())
+                .then(result=>{
+                sessionStorage.setItem("finalRoute", JSON.stringify(result));
+                window.location.href="/navigation";
+                });
+                };
+>>>>>>> 786037fb3ce4070934d206750db965f283bf38ba
             }
         });
+}
+function updateStartButtonState() {
+    document.getElementById("startJourneyBtn").disabled = selectedLandmarks.length === 0;
 }
 
 // Handle Start button (bottom left, always visible)

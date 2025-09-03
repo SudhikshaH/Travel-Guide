@@ -15,6 +15,10 @@ places_col=db["places"]
 def home():
     return render_template("index.html")
 
+@app.route("/navigation")
+def navigation():
+    return render_template("navigation.html")
+
 @app.route('/identify-place', methods=["POST"])
 def identify_place():
     data=request.json
