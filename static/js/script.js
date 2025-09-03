@@ -25,6 +25,9 @@ function getCurrentLocation() {
 
                     identifyPlace(data.Place_ID, lat, lon);
                     render_map(data.Place_ID, lat, lon);
+
+                    // Hook Start button once location + landmarks are loaded
+                    setupStartButton(lat, lon);
                 });
         });
     } else {
@@ -65,14 +68,23 @@ function displayLandmark(Ldata, lat, lon) {
                     if (index !== -1) selectedLandmarks.splice(index, 1);
                     marker.setIcon(defaultIcon);
                     marker.isSelected = false;
+
+
+                    document.getElementById("landmarkDescription").innerText = "";   //clear the description
                 } else {
                     // Select
                     listItem.classList.add("selected");
                     if (index === -1) selectedLandmarks.push(lm.Landmark);
                     marker.setIcon(selectedIcon);
                     marker.isSelected = true;
+
+                    if (lm.Description && lm.Description !== "No description available") {
+                        document.getElementById("landmarkDescription").innerText = lm.Description;
+                    speakText(lm.Description);
+                    } else {
+                        fetchAndSpeakLandmark(lm.Landmark);
+                    }
                 }
-                // update path with local lat/lon
                 calculatePath(lat, lon);
             });
 
@@ -127,8 +139,19 @@ function render_map(placeID, lat, lon) {
         .then(data => {
             if (data.landmarks) {
                 data.landmarks.forEach(landmark => {
+                    console.log("Landmark data from backend:", landmark);
                     const marker = L.marker([landmark.Latitude, landmark.Longitude], { icon: defaultIcon }).addTo(map);
                     marker.isSelected = false;
+
+                    marker.bindPopup(
+                        `<b>${landmark.Landmark}</b><br><small>${landmark.Description ||"No description"}</small>`
+                    )
+                    marker.bindTooltip(`<b>${landmark.Landmark}</b>`, {
+                        direction: 'top',
+                        permanent: false,
+                        sticky: true,
+                        opacity: 0.9
+                    });
                     landmarkMarkers[landmark.Landmark] = marker;
 
                     marker.on('click', function () {
@@ -149,29 +172,48 @@ function render_map(placeID, lat, lon) {
                             listItem.classList.toggle("selected", marker.isSelected);
                         }
 
+
+                        
+
+                        if (landmark.Description && landmark.Description !== "No description available") {
+                            document.getElementById("landmarkDescription").innerText = landmark.Description;
+                            speakText(landmark.Description);
+                        } else {
+                            fetchAndSpeakLandmark(landmark.Landmark);
+                        }
+
+
                         calculatePath(lat, lon);
                     });
-
-                    marker.bindTooltip(`<b>${landmark.Landmark}</b>`, {
-                        direction: 'top',
-                        permanent: false,
-                        sticky: true,
-                        opacity: 0.9
-                    });
                 });
-
-                // Add Start button (only once)
-                if (!document.querySelector("#info button")) {
-                    const startBtn = document.createElement("button");
-                    startBtn.textContent = "Start";
-                    startBtn.style.marginTop = "10px";
-                    startBtn.onclick = function () {
-                        window.location.href = "/navigation"; // redirect to next page
-                    };
-                    document.getElementById("info").appendChild(startBtn);
-                }
             }
         });
+}
+
+// Handle Start button (bottom left, always visible)
+function setupStartButton(lat, lon) {
+    const startBtn = document.getElementById("startJourneyBtn");
+    console.log("setupStartButton called, button:", startBtn);
+    if (!startBtn) return;  
+
+    startBtn.disabled = false;
+
+    startBtn.onclick = function () {
+        console.log("Start button clicked, landmarks:", selectedLandmarks);
+
+        if (selectedLandmarks.length === 0) {
+            alert("Please select at least one landmark to start your journey!");
+            return;
+        }
+
+        const params = new URLSearchParams({
+            landmarks: JSON.stringify(selectedLandmarks),
+            lat: lat,
+            lon: lon
+        });
+
+        window.location.href = "/navigation?" + params.toString();
+    };
 }
 
 function calculatePath(lat, lon) {
@@ -220,5 +262,65 @@ function shortestPath(result, lat, lon) {
     }).filter(c => c !== null);
 
     tourPath = L.polyline(coords, { color: "blue", weight: 4 }).addTo(map);
+
+    // Show total distance at midpoint
+    if (coords.length > 1) {
+        const midIndex = Math.floor(coords.length / 2);
+        const midPoint = coords[midIndex];
+        L.marker(midPoint, { icon: defaultIcon }).addTo(map)
+            .bindPopup(`<b>Total Distance:</b> ${result.distance.toFixed(2)} m`)
+            .openPopup();
+    }
+
     map.fitBounds(tourPath.getBounds());
 }
+
+
+
+let lastDescription = "";  
+
+function fetchAndSpeakLandmark(landmarkName) {
+    fetch('/get-landmark-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Landmark: landmarkName })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            let desc = data.description;
+
+            // show description in page
+            document.getElementById("landmarkDescription").innerText = desc;
+
+            // store latest description for replay
+            lastDescription = desc;
+            document.getElementById("speakAgainBtn").disabled = false;
+
+            // speak it
+            speakText(desc);
+        }
+    })
+    .catch(err => console.error("Error fetching landmark info:", err));
+}
+
+
+function speakText(text, lang) {
+    speechSynthesis.cancel(); // stop old speech
+    let utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang || "en-US";
+    speechSynthesis.speak(utterance);
+}
+
+function speakAgain() {
+            if (lastDescription) {
+                let selectedLang = document.getElementById("langSelect").value;
+                speakText(lastDescription, selectedLang);
+            } else {
+                alert("No description available yet!");
+            }
+        }
+
+

@@ -1,6 +1,6 @@
 import pandas as pd
 from pymongo import MongoClient
-df=pd.read_csv("testing_dataset.csv")
+df=pd.read_csv("C://Users//Admin//OneDrive//Desktop//travel//Travel-Guide//db_rns.csv")
 client=MongoClient("mongodb://localhost:27017/")
 db=client["test_db"]
 #create 2 collections: places, landmarks
