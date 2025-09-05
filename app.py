@@ -50,41 +50,8 @@ def displayLandmarks():
         landmarks = list(landmarks_col.find({"Place_ID": place_id}, {"_id": 0}))
         if not landmarks:
             return jsonify({"error": "No landmark found"}), 404
-
-        landmarks_filtered = []
-        for lm in landmarks:
-            if lm["Landmark"].lower() not in ["entrance", "exit"]:
-                desc = lm.get("Description", "No description available")
-                lat = lm.get("Latitude")
-                lon = lm.get("Longitude")
-
-                # If description missing, call scraper
-                if not desc or desc == "No description available":
-                    print(f"Scraping description for {lm['Landmark']}...")
-                    scraped = get_sublandmark_info(lm["Landmark"], place_id)
-
-                    if scraped:
-                        desc = scraped.get("description", desc)
-                        coords = scraped.get("coordinates", {})
-                        if coords:
-                            lat = coords.get("lat", lat)
-                            lon = coords.get("lon", lon)
-
-                        # Update Mongo with fresh info
-                        landmarks_col.update_one(
-                            {"Place_ID": place_id, "Landmark": lm["Landmark"]},
-                            {"$set": {"Description": desc, "Latitude": lat, "Longitude": lon}}
-                        )
-
-                landmarks_filtered.append({
-                    "Landmark": lm["Landmark"],
-                    "Latitude": lat,
-                    "Longitude": lon,
-                    "Description": desc
-                })
-
-        return jsonify({"landmarks": landmarks_filtered})
-
+        landmarks_filterd=[lm for lm in landmarks if lm["Landmark"].lower() not in ["entrance","exit"]]
+        return jsonify({"landmarks":landmarks_filterd})        
     return jsonify({"error": "Unable to locate place"}), 400
 
 @app.route('/calculate-path', methods=["POST"])
