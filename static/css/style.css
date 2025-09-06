@@ -75,3 +75,47 @@ button:hover {
   border-radius: 10px;
   padding: 5px;
 }
+.suggestions {
+  position: absolute;
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-top: none;
+  z-index: 1000;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.suggestions .suggest-item {
+  padding: 8px 12px;
+}
+
+.suggestions .suggest-item:hover {
+  background: #f5f5f5;
+}
+#ldmrkList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px; /* space between items */
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+#ldmrkList li {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  background: #fff;
+}
+
+#ldmrkList li.selected {
+  background: #cfe2ff;  /* your light blue highlight */
+  font-weight: bold;
+}
+

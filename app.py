@@ -4,18 +4,24 @@ from geopy.distance import geodesic
 from heldKarp import held_karp_path_tsp
 import openrouteservice
 from scraper import get_sublandmark_info
+import re
+
+
 
 app=Flask(__name__)
-ORS_API_KEY="YOUR api key here"
+ORS_API_KEY="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjI1YzVjMjhkZGYyYzQ0ZmNiOWJiZDllNTU3NTljOTQ4IiwiaCI6Im11cm11cjY0In0="
 ors_client=openrouteservice.Client(key=ORS_API_KEY)
 client=MongoClient("mongodb://localhost:27017/")
 db=client["test_bangl_db"]
 landmarks_col=db["landmarks"]
 places_col=db["places"]
+places_col.create_index([("Place_Name", 1)])
 
 @app.route("/")
 def home():
     return render_template("index.html")
+    
+    
 
 @app.route("/navigation")
 def navigation():
@@ -50,9 +56,20 @@ def displayLandmarks():
         landmarks = list(landmarks_col.find({"Place_ID": place_id}, {"_id": 0}))
         if not landmarks:
             return jsonify({"error": "No landmark found"}), 404
-        landmarks_filterd=[lm for lm in landmarks if lm["Landmark"].lower() not in ["entrance","exit"]]
-        return jsonify({"landmarks":landmarks_filterd})        
+
+        # ✅ remove duplicates
+        unique_landmarks = {}
+        for lm in landmarks:
+            unique_landmarks[lm["Landmark"].lower()] = lm  
+
+        landmarks_filtered = [
+            lm for lm in unique_landmarks.values()
+            if lm["Landmark"].lower() not in ["entrance", "exit"]
+        ]
+
+        return jsonify({"landmarks": landmarks_filtered})        
     return jsonify({"error": "Unable to locate place"}), 400
+
 
 @app.route('/calculate-path', methods=["POST"])
 def calculate_path():
@@ -138,21 +155,61 @@ def api_route():
 
 @app.route("/search-place", methods=["POST"])
 def search_place():
-    data = request.json
-    place_name = data.get("place_name")
-    if not place_name:
+    data = request.json or {}
+    raw = data.get("place_name", "")
+    q = raw.strip().lower()
+    if not q:
         return jsonify({"error": "Place name required"}), 400
-    place = places_col.find_one({"Place_Name": {"$regex": f"^{place_name}$", "$options": "i"}})
+
+    # 1) exact match (since you stored lowercased names in csv_to_db)
+    place = places_col.find_one({"Place_Name": q})
+
+    # 2) fallback: prefix match (case-insensitive, escaped)
+    if not place:
+        rx = f"^{re.escape(q)}"
+        place = places_col.find_one({"Place_Name": {"$regex": rx, "$options": "i"}})
+
     if not place:
         return jsonify({"error": "Place not found"}), 404
+
     landmarks = list(landmarks_col.find({"Place_ID": place["Place_ID"]}, {"_id": 0}))
-    landmarks_filtered = [lm for lm in landmarks if lm["Landmark"].lower() not in ["entrance", "exit"]]
+
+# ✅ deduplicate
+    unique_landmarks = {}
+    for lm in landmarks:
+        unique_landmarks[lm["Landmark"].lower()] = lm  
+
+    landmarks_filtered = [
+        lm for lm in unique_landmarks.values()
+        if lm["Landmark"].lower() not in ["entrance", "exit"]
+    ]
+
+
     return jsonify({
         "Place_ID": place["Place_ID"],
         "Place_Name": place["Place_Name"],
         "landmarks": landmarks_filtered
     })
+@app.route("/suggest-places", methods=["GET"])
+def suggest_places():
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"suggestions": []})
+
+    rx = f"^{re.escape(q)}"
+    cursor = places_col.find(
+        {"Place_Name": {"$regex": rx, "$options": "i"}},
+        {"_id": 0, "Place_ID": 1, "Place_Name": 1}
+    ).sort("Place_Name", 1).limit(8)
+
+    return jsonify({"suggestions": list(cursor)})
 
 
 if __name__=='__main__':
     app.run(debug=True)
+
+
+
+
+
+

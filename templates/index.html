@@ -18,21 +18,30 @@
       <strong>Remember! Location access is mandatory.</strong>
     </p>
     <p id="status" class="fs-5 text-secondary">Search for a place to begin...</p>
-    <div class="mb-3">
-    <input id="placeSearch" type="text" class="form-control" placeholder="Enter place name...">
-    <button id="searchBtn" class="btn btn-success mt-2">Search</button>
+    <div class="mb-3 position-relative">
+      <input id="placeSearch" type="text" class="form-control" placeholder="Enter place name...">
+      <ul id="suggestList" class="suggestions" style="display:none;"></ul>
+      <button id="searchBtn" class="btn btn-success mt-2">Search</button>
     </div>
+    
     <div id="map" class="shadow rounded"></div>
 
     <div id="landmark" class="mt-4">
       <h4 class="mb-3">Select Landmarks</h4>
      <ul id="ldmrkList" class="list-unstyled"style="min-height: 100px;"></ul>
     </div>
-
+    
     <div class="mt-3">
       <button id="startJourneyBtn" class="btn btn-primary" disabled>Start</button>
     </div>
   </div>
+  
+
+  <ul id="suggestList" class="suggestions" style="display:none;"></ul>
+</div>
+
+
+</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="{{url_for('static', filename='js/script.js')}}"></script>
 </body>

@@ -3,6 +3,7 @@ const landmarkMarkers = {};
 let tourPath = null;
 let map;
 
+
 function getCurrentLocation() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(function (pos) {
@@ -122,35 +123,36 @@ function render_map(placeID, lat, lon) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Place_ID: placeID })
     })
-        .then(response => response.json())
-        .then(data => {
+    .then(response => response.json())
+    .then(data => {
+            displayLandmark(data, lat, lon);
             if (data.landmarks) {
-                data.landmarks.forEach(landmark => {
-                    const marker = L.marker([landmark.Latitude, landmark.Longitude], { icon: defaultIcon }).addTo(map);
-                    marker.isSelected = false;
-                    landmarkMarkers[landmark.Landmark] = marker;
+        data.landmarks.forEach(landmark => {
+            const marker = L.marker([landmark.Latitude, landmark.Longitude], { icon: defaultIcon }).addTo(map);
+            marker.isSelected = false;
+            landmarkMarkers[landmark.Landmark] = marker;
 
-                    marker.on('click', function () {
-                        marker.isSelected = !marker.isSelected;
+            marker.on('click', function () {
+                marker.isSelected = !marker.isSelected;
                         const index = selectedLandmarks.indexOf(landmark.Landmark);
 
-                        if (marker.isSelected) {
+                if (marker.isSelected) {
                             if (index === -1) selectedLandmarks.push(landmark.Landmark);
-                            marker.setIcon(selectedIcon);
-                        } else {
+                    marker.setIcon(selectedIcon);
+                } else {
                             if (index > -1) selectedLandmarks.splice(index, 1);
-                            marker.setIcon(defaultIcon);
-                        }
+                    marker.setIcon(defaultIcon);
+                }
 
-                        const listItem = Array.from(document.querySelectorAll("#ldmrkList li"))
-                            .find(li => li.textContent === landmark.Landmark);
+                const listItem = Array.from(document.querySelectorAll("#ldmrkList li"))
+                    .find(li => li.textContent === landmark.Landmark);
                         if (listItem) {
                             listItem.classList.toggle("selected", marker.isSelected);
                         }
 
-                        calculatePath(lat, lon);
-                        updateStartButtonState();
-                    });
+                calculatePath(lat, lon);
+                updateStartButtonState();
+            });
                     updateStartButtonState();
                     marker.bindTooltip(`<b>${landmark.Landmark}</b>`, {
                         direction: 'top',
@@ -158,10 +160,10 @@ function render_map(placeID, lat, lon) {
                         sticky: true,
                         opacity: 0.9
                     });
-                });
+        });
 
                 // Add Start button (only once)
-                document.getElementById("startJourneyBtn").onclick = function () {
+        document.getElementById("startJourneyBtn").onclick = function () {
                     const payload={
                     landmarks:selectedLandmarks.map(name=>{
                         const marker= landmarkMarkers[name];
@@ -170,22 +172,22 @@ function render_map(placeID, lat, lon) {
                             Latitude:marker.getLatLng().lat,
                             Longitude:marker.getLatLng().lng
                         };
-                    }),
+                }),
                     user_location:{Latitude:lat, Longitude:lon}
-                };
+            };
                 fetch("/calculate-path",{
                     method:"POST",
                     headers:{"Content-Type":"application/json"},
                     body:JSON.stringify(payload)
-                })
+            })
                 .then(response=>response.json())
                 .then(result=>{
                 sessionStorage.setItem("finalRoute", JSON.stringify(result));
                 window.location.href="/navigation";
-                });
-                };
+            });
+        };
             }
-        });
+    });
 }
 function updateStartButtonState() {
     document.getElementById("startJourneyBtn").disabled = selectedLandmarks.length === 0;
@@ -266,6 +268,70 @@ document.getElementById("searchBtn").addEventListener("click", function () {
             render_map(data.Place_ID, data.landmarks[0].Latitude, data.landmarks[0].Longitude);
         });
 });
+function debounce(fn, delay = 200) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), delay);
+  };
+}
+
+const inputEl = document.getElementById("placeSearch");
+const suggestEl = document.getElementById("suggestList");
+
+function renderSuggestions(items) {
+  if (!items || items.length === 0) {
+    suggestEl.style.display = "none";
+    suggestEl.innerHTML = "";
+    return;
+  }
+  suggestEl.innerHTML = "";
+  items.forEach(it => {
+    const li = document.createElement("li");
+    li.textContent = it.Place_Name;
+    li.className = "suggest-item";
+    li.style.cursor = "pointer";
+    li.addEventListener("click", () => {
+      inputEl.value = it.Place_Name;
+      suggestEl.style.display = "none";
+      document.getElementById("searchBtn").click();
+    });
+    suggestEl.appendChild(li);
+  });
+  suggestEl.style.display = "block";
+}
+
+const fetchSuggestions = debounce(() => {
+  const q = inputEl.value.trim();
+  if (!q) { renderSuggestions([]); return; }
+  fetch(`/suggest-places?q=${encodeURIComponent(q)}`)
+    .then(r => r.json())
+    .then(data => renderSuggestions(data.suggestions || []))
+    .catch(() => renderSuggestions([]));
+}, 150);
+
+inputEl.addEventListener("input", fetchSuggestions);
+
+document.addEventListener("click", (e) => {
+  if (!suggestEl.contains(e.target) && e.target !== inputEl) {
+    suggestEl.style.display = "none";
+  }
+});
+
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && suggestEl.style.display === "block") {
+    const first = suggestEl.querySelector(".suggest-item");
+    if (first) {
+      e.preventDefault();
+      first.click();
+    }
+  }
+});
+
+
+
+
+
 /*
 =======
 
