@@ -7,7 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {useRouter} from 'expo-router';
 
-const API_BASE = "http://192.168.1.39:5000"; // your Flask server
+const API_BASE = "http://192.168.1.xx:5000"; // your Flask server
 
 interface Landmark {
   Landmark: string;

@@ -4,7 +4,7 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import { useLocalSearchParams } from "expo-router";
 
-const API_BASE = "http://192.168.1.39:5000"; // Flask server
+const API_BASE = "http://192.168.1.xx:5000"; // Flask server
 
 export default function NavigationScreen() {
   const { routeData } = useLocalSearchParams();
