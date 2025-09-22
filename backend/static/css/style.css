@@ -1,0 +1,121 @@
+body {
+  background: #f9fafd;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+}
+
+#map {
+  height: 500px;
+  width: 100%;
+  margin-top: 20px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+}
+
+#landmark {
+  margin-top: 20px;
+}
+
+#ldmrkList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.landmark-item {
+  background-color: #fff;
+  padding: 12px 16px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.landmark-item:hover {
+  background-color: #e6f0ff;
+  transform: translateY(-2px);
+}
+
+.landmark-item.selected {
+  background-color: #cce0ff;
+  border-color: #99c2ff;
+  font-weight: bold;
+  color: #003366;
+}
+
+button {
+  background-color: #007bff;
+  border: none;
+  color: white;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 12px;
+  display: inline-block;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+#info {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #555;
+  margin-top: 15px;
+}
+#mapNav { height: 100vh; }
+  .leaflet-routing-container {
+  background: white;
+  border-radius: 10px;
+  padding: 5px;
+}
+.suggestions {
+  position: absolute;
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-top: none;
+  z-index: 1000;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.suggestions .suggest-item {
+  padding: 8px 12px;
+}
+
+.suggestions .suggest-item:hover {
+  background: #f5f5f5;
+}
+#ldmrkList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px; /* space between items */
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+#ldmrkList li {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  background: #fff;
+}
+
+#ldmrkList li.selected {
+  background: #cfe2ff;  /* your light blue highlight */
+  font-weight: bold;
+}
+
