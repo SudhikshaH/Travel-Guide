@@ -5,6 +5,7 @@ import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import {useRouter} from 'expo-router';
 
 const API_BASE = "http://192.168.1.39:5000"; // your Flask server
 
@@ -27,7 +28,7 @@ export default function HomeScreen() {
   const [placeData, setPlaceData] = useState<Place | null>(null);
   const [selectedLandmarks, setSelectedLandmarks] = useState<Landmark[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
-
+  const router = useRouter();
   const toggleSheet = () => setSheetOpen(!sheetOpen);
 
   // Get user location
@@ -40,7 +41,7 @@ export default function HomeScreen() {
     })();
   }, []);
 
-  // Fetch suggestions
+  // Search Engine
   useEffect(() => {
     const fetchSuggestions = async () => {
       if (!searchText.trim()) return setSuggestions([]);
@@ -67,7 +68,7 @@ export default function HomeScreen() {
       if (!data.error) {
         setPlaceData(data);
         setSelectedLandmarks([]);
-        setSheetOpen(true); // open sheet automatically when place is loaded
+        setSheetOpen(true);
       }
     } catch (err) { console.error(err); }
   };
@@ -88,6 +89,10 @@ export default function HomeScreen() {
       });
       const result = await res.json();
       console.log("Calculated Path:", result.path);
+      router.push({
+        pathname:'./navigation',
+        params: { routeData: JSON.stringify(result) }
+      }); 
     } catch (err) { console.error(err); }
   };
 

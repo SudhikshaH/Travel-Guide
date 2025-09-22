@@ -246,7 +246,7 @@ function shortestPath(result, lat, lon) {
 }
 document.getElementById("searchBtn").addEventListener("click", function () {
     const placeName = document.getElementById("placeSearch").value.trim();
-    if (!placeName) return alert("Please Enter a Place Name");
+    if (!placeName) return alert("Please enter a place name");
 
     fetch("/search-place", {
         method: "POST",
