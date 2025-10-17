@@ -7,10 +7,10 @@ from scraper import get_sublandmark_info
 import re
 
 app=Flask(__name__)
-ORS_API_KEY="YOUR_API_KEY"
+ORS_API_KEY="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImNkNzNjN2ZlYzFjMDQ3ZGM4Y2EwZTcwZjQyY2UyMWIzIiwiaCI6Im11cm11cjY0In0="
 ors_client=openrouteservice.Client(key=ORS_API_KEY)
 client=MongoClient("mongodb://localhost:27017/")
-db=client["test_bangl_db"]
+db=client["rnsit_db"]
 landmarks_col=db["landmarks"]
 places_col=db["places"]
 places_col.create_index([("Place_Name", 1)])

@@ -4,7 +4,7 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import { useLocalSearchParams } from "expo-router";
 
-const API_BASE = "http://192.168.1.xx:5000"; // Flask server
+const API_BASE = "http://192.168.1.39:5000"; // Flask server
 
 export default function NavigationScreen() {
   const { routeData } = useLocalSearchParams();
@@ -94,7 +94,7 @@ export default function NavigationScreen() {
         latitudeDelta: 0.01,
         longitudeDelta: 0.01
       }}
-      showsUserLocation={false} // we will handle custom marker
+      showsUserLocation={false} 
     >
       {/* ORS polyline */}
       <Polyline coordinates={coords} strokeWidth={4} strokeColor="blue" />
@@ -122,20 +122,35 @@ export default function NavigationScreen() {
             justifyContent: "center",
             alignItems: "center"
           }}>
-            <View style={{
-              width: 0,
-              height: 0,
-              borderLeftWidth: 8,
-              borderRightWidth: 8,
-              borderBottomWidth: 20,
-              borderLeftColor: "transparent",
-              borderRightColor: "transparent",
-              borderBottomColor: "grey",
-              transform: [{ rotate: "0deg" }]
-            }} />
-          </View>
-        </Marker>
-      )}
+        <View style={{ alignItems: "center", justifyContent: "center" }}>
+        <View
+            style={{
+            width: 35,
+            height: 35,
+            borderRadius: 18,
+            backgroundColor: "rgba(0, 122, 255, 0.8)", 
+            justifyContent: "center",
+            alignItems: "center"
+        }}
+        >
+        <View
+          style={{
+            width: 5,
+            height: 0,
+            borderLeftWidth: 8,
+            borderRightWidth: 8,
+            borderBottomWidth: 22,
+            borderLeftColor: "transparent",
+            borderRightColor: "transparent",
+            borderBottomColor: "white" 
+          }}
+        />
+        </View>
+        </View>
+    </View>
+  </Marker>
+        )}
     </MapView>
+
   );
 }
