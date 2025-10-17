@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 import time
 
 places = [
-    "RNS Institute Of Technology, Bangalore, India",
+    #"RNS Institute Of Technology, Bangalore, India",s
     "Lalbagh Botanical Garden, Bangalore, India",
     "Cubbon Park, Bangalore, India"
 ]
