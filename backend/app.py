@@ -6,11 +6,16 @@ import openrouteservice
 from scraper import get_sublandmark_info
 import re
 
+from googletrans import Translator
+
+translator = Translator()
+
+
 app=Flask(__name__)
-ORS_API_KEY="YOUR_API_KEY"
+ORS_API_KEY="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjMxNTgzMmRlN2U0YWYyYjg3N2NlNTVhMWQ1MzcxNmRiMDAyNGE1NmE0NmFiNTRlYzgxNzVlZjk3IiwiaCI6Im11cm11cjY0In0="
 ors_client=openrouteservice.Client(key=ORS_API_KEY)
 client=MongoClient("mongodb://localhost:27017/")
-db=client["test_bangl_db"]
+db=client["rnsit_db"]
 landmarks_col=db["landmarks"]
 places_col=db["places"]
 places_col.create_index([("Place_Name", 1)])
@@ -131,21 +136,57 @@ def get_ors_route():
 
 @app.route("/api/route", methods=["POST"])
 def api_route():
+    """
+    Calculate a walking route using ORS and return:
+    - Full geometry for polyline
+    - Turn-by-turn instructions
+    - Landmark details with descriptions
+    """
     data = request.json
     profile = data.get("profile", "foot-walking")
     coords = data.get("coordinates", [])
+    landmarks_selected = data.get("landmarks", [])  # Optional: selected landmarks
+
     if not coords or len(coords) < 2:
         return jsonify({"error": "At least 2 coordinates required"}), 400
+
     try:
+        # Request ORS directions with instructions
         route = ors_client.directions(
             coordinates=coords,
             profile=profile,
             format="geojson",
-            instructions=False
+            instructions=True,
+            language="en"
         )
-        return jsonify(route)
+
+        # Extract steps (turn-by-turn)
+        steps: list[str] = []
+        if "features" in route and len(route["features"]) > 0:
+            segments = route["features"][0]["properties"].get("segments", [])
+            for segment in segments:
+                for step in segment.get("steps", []):
+                    steps.append({
+                        "instruction": step.get("instruction", ""),
+                        "distance": step.get("distance", 0)  
+                    })
+
+        # Prepare landmarks with descriptions
+        merged_landmarks = []
+        for lm in landmarks_selected:
+            db_lm = landmarks_col.find_one({"Landmark": lm["Landmark"]}, {"_id": 0, "Description": 1})
+            lm["Description"] = db_lm["Description"] if db_lm and "Description" in db_lm else ""
+            merged_landmarks.append(lm)
+
+        return jsonify({
+            "route_geojson": route,          # Full ORS geometry
+            "instructions": steps,           # Turn-by-turn instructions
+            "result_path": merged_landmarks  # Landmarks with descriptions
+        })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/search-place", methods=["POST"])
 def search_place():
@@ -195,3 +236,4 @@ def suggest_places():
 
 if __name__=='__main__':
     app.run(host="0.0.0.0", port=5000,debug=True)
+    
