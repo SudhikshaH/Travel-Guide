@@ -3,14 +3,16 @@ from pymongo import MongoClient
 from geopy.distance import geodesic
 from heldKarp import held_karp_path_tsp
 import openrouteservice
+import ast, json
 from scraper import get_sublandmark_info
+from shapely.geometry import Point, Polygon, mapping, box
 import re
-
+    
 app=Flask(__name__)
 ORS_API_KEY="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImNkNzNjN2ZlYzFjMDQ3ZGM4Y2EwZTcwZjQyY2UyMWIzIiwiaCI6Im11cm11cjY0In0="
 ors_client=openrouteservice.Client(key=ORS_API_KEY)
 client=MongoClient("mongodb://localhost:27017/")
-db=client["rnsit_db"]
+db=client["rns_db"]
 landmarks_col=db["landmarks"]
 places_col=db["places"]
 places_col.create_index([("Place_Name", 1)])
@@ -19,8 +21,6 @@ places_col.create_index([("Place_Name", 1)])
 def home():
     return render_template("index.html")
     
-    
-
 @app.route("/navigation")
 def navigation():
     return render_template("navigation.html")
@@ -113,7 +113,85 @@ def calculate_path():
 
     except Exception as e:
         return jsonify({"error": "Failed to query ORS", "details": str(e)}), 500
+"""
+from shapely.geometry import Point, Polygon
+import ast
+from flask import jsonify, request
 
+@app.route("/calculate-path", methods=["POST"])
+def calculate_path():
+    try:
+        data = request.get_json()
+        ldmrk_selected = data.get("landmarks")
+        user_loc = data.get("user_location")
+        place_id = int(data.get("Place_ID"))
+
+        place_data = places_col.find_one({"Place_ID": place_id})
+        entrance = landmarks_col.find_one({"Place_ID": place_id, "Landmark": "Entrance"})
+
+        boundary = ast.literal_eval(place_data["Boundary"])
+        polygon = Polygon([(lon, lat) for lat, lon in boundary])
+
+        user_point = Point(user_loc["Longitude"], user_loc["Latitude"])
+        inside_polygon = polygon.contains(user_point)
+
+        # If user outside campus, start from entrance
+        if not inside_polygon:
+            nodes = [entrance] + ldmrk_selected
+        else:
+            nodes = ldmrk_selected
+
+        coords = [(n["Longitude"], n["Latitude"]) for n in nodes]
+
+        # Distance matrix & TSP
+        matrix = ors_client.distance_matrix(
+            locations=coords,
+            profile="foot-walking",
+            metrics=["distance"],
+            units="m"
+        )
+        dist_matrix = matrix["distances"]
+        result = held_karp_path_tsp(dist_matrix, nodes)
+
+        tsp_ordered_nodes = []
+        tsp_coords = []
+        for name in result["path"]:
+            node = next((n for n in nodes if n["Landmark"].lower() == name.lower()), None)
+            if node:
+                node.pop("_id", None)
+                tsp_ordered_nodes.append(node)
+                tsp_coords.append([node["Longitude"], node["Latitude"]])
+
+        polygon_geojson = {
+            "type": "Polygon",
+            "coordinates": [[(lon, lat) for lat, lon in boundary]]
+        }
+
+        # Request ORS directions restricted inside campus
+        route = ors_client.directions(
+            coordinates=tsp_coords,
+            profile="foot-walking",
+            format="geojson",
+            options={
+                "avoid_polygons": polygon_geojson  # only restricts *outside* the polygon
+            }
+        )
+
+        print("Calculated Path:", result["path"])
+
+        return jsonify({
+            "path": result["path"],
+            "result_path": tsp_ordered_nodes,
+            "distance": result["distance"],
+            "route_geojson": route,
+            "inside_boundary": inside_polygon,
+            "user_location": user_loc
+        })
+
+    except Exception as e:
+        print("Error in calculate_path:", str(e))
+        return jsonify({"error": "Failed to calculate route", "details": str(e)}), 500
+"""
 @app.route("/get-ors-route", methods=["POST"])
 def get_ors_route():
     data = request.json

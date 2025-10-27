@@ -80,7 +80,7 @@ export default function HomeScreen() {
 
   const handleStart = async () => {
     if (!userLocation || selectedLandmarks.length < 2) return;
-    const payload = { landmarks: selectedLandmarks, user_location: userLocation };
+    const payload = { Place_ID: placeData?.Place_ID, landmarks: selectedLandmarks, user_location: userLocation };
     try {
       const res = await fetch(`${API_BASE}/calculate-path`, {
         method: 'POST',
@@ -88,7 +88,6 @@ export default function HomeScreen() {
         body: JSON.stringify(payload),
       });
       const result = await res.json();
-      console.log("Calculated Path:", result.path);
       router.push({
         pathname:'./navigation',
         params: { routeData: JSON.stringify(result) }

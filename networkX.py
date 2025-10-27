@@ -1,3 +1,4 @@
+"""
 import os
 import csv
 import osmnx as ox
@@ -10,8 +11,8 @@ import time
 
 places = [
     #"RNS Institute Of Technology, Bangalore, India",s
-    "Lalbagh Botanical Garden, Bangalore, India",
-    "Cubbon Park, Bangalore, India"
+    #"Lalbagh Botanical Garden, Bangalore, India",
+    #"Cubbon Park, Bangalore, India"
 ]
 
 csv_file_path = "place_landmarks.csv"
@@ -92,3 +93,19 @@ with open(csv_file_path, "a", newline='', encoding='utf-8') as csvfile:
 
         place_id += 1
         time.sleep(2)
+"""
+import osmnx as ox
+
+# Example: your university campus
+place_name = "RNS Institute Of Technology, Bangalore, India"
+
+# Get boundary polygon
+if place_name:
+    gdf = ox.geocode_to_gdf(place_name)
+
+# Extract polygon coordinates
+polygon = gdf.geometry.iloc[0]
+
+# Convert to lat/lon list (for saving to MongoDB)
+polygon_coords = [(lat, lon) for lon, lat in polygon.exterior.coords]
+print(polygon_coords)
