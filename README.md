@@ -36,3 +36,4 @@ Margnify is a smart navigation and information platform designed to enhance tour
 
 ## Results
 
+- [View results](Results)
