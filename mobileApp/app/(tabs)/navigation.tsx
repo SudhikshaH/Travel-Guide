@@ -1,74 +1,50 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  ScrollView,
-  Platform,
-  Alert,
-  Modal,
-} from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Animated, ScrollView, Platform, Alert } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import * as Speech from "expo-speech";
 import { useLocalSearchParams } from "expo-router";
 import { Ionicons, FontAwesome } from "@expo/vector-icons";
-import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 
-const API_BASE = "http://10.35.140.35:5000"; // your Flask server
+const API_BASE = "http://abc.168.29.xx:5000"; // Flask server
 
 export default function NavigationScreen() {
   const { routeData } = useLocalSearchParams();
 
-  // overall route & segment state
-  const [route, setRoute] = useState<any>(null); // full calculate-path response
-  const [segmentIndex, setSegmentIndex] = useState(0); // which segment (0 => start->landmark1)
-  const [segmentSteps, setSegmentSteps] = useState<any[]>([]); // steps for current segment
-  const [segmentGeoCoords, setSegmentGeoCoords] = useState<any[]>([]); // polyline coords for current segment
-  const [segmentStepStartCoords, setSegmentStepStartCoords] = useState<any[]>([]); // map step->coord
-  const [isNavigating, setIsNavigating] = useState(false); // true while following a segment
-
-  // user + UI state
+  const [route, setRoute] = useState<any>(null); // final route object (from calculate-path or passed)
+  const [coords, setCoords] = useState<any[]>([]); // landmark coords fallback
+  const [routeGeoCoords, setRouteGeoCoords] = useState<any[]>([]); // ORS geometry coords
+  const [steps, setSteps] = useState<any[]>([]); // ORS steps (instructions + way_points + distance)
+  const [stepStartCoords, setStepStartCoords] = useState<any[]>([]); // mapped step -> coord
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [userHeading, setUserHeading] = useState(0);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0); // index inside segmentSteps
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [spokenSteps, setSpokenSteps] = useState<Set<number>>(new Set());
+  const [visitedLandmarks, setVisitedLandmarks] = useState<Set<number>>(new Set());
   const [isMutedDirections, setIsMutedDirections] = useState(false);
   const [isMutedDescription, setIsMutedDescription] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [currentText, setCurrentText] = useState(""); // caption for landmarks description
+  const [currentText, setCurrentText] = useState("");
   const [fullText, setFullText] = useState("");
   const [showFull, setShowFull] = useState(false);
-  const [visitedLandmarks, setVisitedLandmarks] = useState<Set<number>>(new Set());
-  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+  const [activeLandmark, setActiveLandmark] = useState<number | null>(null);
   const [showDirectionsModal, setShowDirectionsModal] = useState(false);
-  const [nextLandmark, setNextLandmark] = useState<string>("");
 
-  // description sheet state (replaces old Continue/Exit modal)
-  const [activeLandmarkIndex, setActiveLandmarkIndex] = useState<number | null>(null);
-  const [showDescriptionSheet, setShowDescriptionSheet] = useState(false);
-
-  // refs & helpers
   const isMutedDirectionsRef = useRef(isMutedDirections);
   const isMutedDescriptionRef = useRef(isMutedDescription);
-  const lastSpokenRef = useRef<Record<number, number>>({}); // cooldown timestamps per step index
   const mapRef = useRef<MapView>(null);
   const captionOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => { isMutedDirectionsRef.current = isMutedDirections; }, [isMutedDirections]);
   useEffect(() => { isMutedDescriptionRef.current = isMutedDescription; }, [isMutedDescription]);
 
-  // thresholds
-  const STEP_DISTANCE_THRESHOLD = 25; // meters to consider step reached
-  const LANDMARK_ARRIVAL_THRESHOLD = 50; // meters to consider arrived at landmark (you requested 50m)
-  const LANDMARK_DESCRIPTION_THRESHOLD = 15;
-  const PRE_SPEAK_DISTANCE = 60; // pre-alert distance
-  const STEP_COOLDOWN_MS = 15000; // 15s
+  // thresholds (tweak as needed)
+  const STEP_DISTANCE_THRESHOLD = 25; // meters for speaking direction
+  const LANDMARK_DISTANCE_THRESHOLD = 15; // meters for landmark description
+  const PRE_SPEAK_DISTANCE = 60; // if you want pre-alert (e.g., "In 60 meters, turn right") -> used in formatDirection
 
-  // ---------- helpers ----------
-  function getDistance(p1: any, p2: any) {
+  // ------------------ Helpers ------------------
+  const getDistance = (p1: any, p2: any) => {
     if (!p1 || !p2) return Infinity;
     const R = 6371000;
     const dLat = (p2.latitude - p1.latitude) * (Math.PI / 180);
@@ -80,39 +56,45 @@ export default function NavigationScreen() {
       Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
-  }
+  };
 
-  function summarizeText(text: string, maxSentences = 2) {
+  const summarizeText = (text: string, maxSentences = 2) => {
     if (!text) return "";
     const sentences = text.split(". ").map((s) => s.trim()).filter(Boolean);
     return sentences.slice(0, maxSentences).join(". ") + (sentences.length > maxSentences ? "..." : "");
-  }
+  };
 
-  function coordsFromGeojson(geojson: any) {
+  // Convert ORS geojson coordinates to {latitude, longitude} array
+  const coordsFromGeojson = (geojson: any) => {
     try {
       const coords = geojson?.features?.[0]?.geometry?.coordinates || [];
       return coords.map((c: any) => ({ latitude: c[1], longitude: c[0] }));
     } catch {
       return [];
     }
-  }
+  };
 
-  function stepsFromGeojson(geojson: any) {
+  // Extract steps from ORS route geojson
+  const stepsFromGeojson = (geojson: any) => {
     try {
       return geojson?.features?.[0]?.properties?.segments?.[0]?.steps || [];
     } catch {
       return [];
     }
-  }
+  };
 
-  function formatDirection(step: any) {
+  // Format a natural-sounding direction (adds "In X meters" if distance available)
+  const formatDirection = (step: any) => {
     const base = (step?.instruction || "").replace(/\s+/g, " ").trim();
     const dist = step?.distance ?? 0;
-    if (dist > PRE_SPEAK_DISTANCE) return `In ${Math.round(dist)} meters, ${base.toLowerCase()}`;
+    if (dist > PRE_SPEAK_DISTANCE) {
+      return `In ${Math.round(dist)} meters, ${base.toLowerCase()}`;
+    }
     return base;
-  }
+  };
 
-  function computeStepStartCoords(stepsArr: any[], routeCoordsArr: any[]) {
+  // Map each step to a coordinate (use way_points[0] as start index into routeGeoCoords)
+  const computeStepStartCoords = (stepsArr: any[], routeCoordsArr: any[]) => {
     const mapped: any[] = [];
     for (let s of stepsArr) {
       const wp = s?.way_points;
@@ -126,20 +108,25 @@ export default function NavigationScreen() {
       }
     }
     return mapped;
-  }
+  };
 
-  // ---------------- route load ----------------
+  // ------------------ Route fetch & init ------------------
   useEffect(() => {
     if (!routeData) return;
     const routeDataStr = Array.isArray(routeData) ? routeData[0] : routeData;
-    let parsed: any;
-    try { parsed = JSON.parse(routeDataStr); } catch { parsed = routeDataStr; }
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(routeDataStr);
+    } catch (e) {
+      parsed = routeDataStr;
+    }
 
+    // If the passed object already has result_path/route_geojson, use it directly
     if (parsed?.result_path && parsed?.route_geojson) {
-      setRoute(parsed);
-      // start first segment but arrival/dialog will not appear for segmentIndex 0
-      setTimeout(() => startSegment(0, parsed), 200);
+      initRouteFromCalculatePathResponse(parsed);
     } else {
+      // Otherwise we expect parsed to contain landmarks + user_location (from index.tsx start)
+      // We'll POST to /calculate-path to get the full route
       fetchCalculatePath(parsed);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,75 +145,42 @@ export default function NavigationScreen() {
         Alert.alert("Routing error", json?.error || "Failed to calculate route");
         return;
       }
-      setRoute(json);
-      startSegment(0, json);
+      initRouteFromCalculatePathResponse(json);
     } catch (err) {
       console.error("Failed to call calculate-path:", err);
       Alert.alert("Network error", "Failed to contact server for route");
     }
   };
 
-  // ---------------- segment handling ----------------
-  const fetchSegmentRoute = async (from: { Latitude: number; Longitude: number }, to: { Latitude: number; Longitude: number }) => {
-    try {
-      const res = await fetch(`${API_BASE}/get-ors-route`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coords: [[from.Longitude, from.Latitude], [to.Longitude, to.Latitude]], profile: "foot-walking" }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw json;
-      return json;
-    } catch (err) {
-      console.error("get-ors-route error", err);
-      return null;
-    }
-  };
+  const initRouteFromCalculatePathResponse = (resp: any) => {
+    const parsedRoute = { ...resp };
+    setRoute(parsedRoute);
 
-  const startSegment = async (idx: number, providedRoute?: any) => {
-    if (!providedRoute && !route) return;
-    const full = providedRoute || route;
-    const nodes = full.result_path || [];
-    if (idx < 0 || idx >= nodes.length) return;
+    // Set landmark-fallback coords (result_path)
+    const pathCoords = (parsedRoute.result_path || []).map((n: any) => ({
+      latitude: n.Latitude,
+      longitude: n.Longitude,
+    }));
+    setCoords(pathCoords);
 
-    const fromNode = idx === 0 ? (full.user_location || { Latitude: userLocation?.latitude, Longitude: userLocation?.longitude }) : nodes[idx - 1];
-    const toNode = nodes[idx];
+    // ORS geometry
+    const geo = parsedRoute.route_geojson || parsedRoute.route || parsedRoute.route_geojson;
+    const geoCoords = coordsFromGeojson(geo);
+    setRouteGeoCoords(geoCoords);
 
-    if (!fromNode || !toNode) return;
+    // Steps (directions)
+    const parsedSteps = stepsFromGeojson(geo);
+    setSteps(parsedSteps || []);
 
-    // reset segment state
-    setIsNavigating(false);
-    setSegmentSteps([]);
-    setSegmentGeoCoords([]);
-    setSegmentStepStartCoords([]);
-    setCurrentStepIndex(0);
-    setSpokenSteps(new Set());
-    lastSpokenRef.current = {};
+    // Map steps to start coordinates using way_points
+    const mappedStepCoords = computeStepStartCoords(parsedSteps || [], geoCoords || []);
+    setStepStartCoords(mappedStepCoords || []);
 
-    const segRoute = await fetchSegmentRoute(fromNode, toNode);
-    if (!segRoute) {
-      Alert.alert("Routing error", "Unable to fetch segment route");
-      return;
-    }
-
-    const segCoords = coordsFromGeojson(segRoute);
-    const segSteps = stepsFromGeojson(segRoute);
-
-    setSegmentGeoCoords(segCoords);
-    setSegmentSteps(segSteps || []);
-    setSegmentStepStartCoords(computeStepStartCoords(segSteps || [], segCoords || []));
-    setIsNavigating(true);
-
-    // ETA
-    let segDistance = 0;
-    if (segSteps && segSteps.length) segDistance = segSteps.reduce((s: number, st: any) => s + (st.distance || 0), 0);
-    else if (segRoute?.features?.[0]?.properties?.summary?.distance) segDistance = segRoute.features[0].properties.summary.distance;
-    setEtaSeconds(segDistance > 0 ? Math.round(segDistance / 1.2) : null);
-
-    // speak first instruction
-    if ((segSteps || []).length > 0 && !isMutedDirectionsRef.current) {
-      const first = segSteps[0];
-      const toSpeak = `Now heading to ${toNode.Landmark}. ${formatDirection(first)}`;
+    // Speak the first instruction immediately (if exists)
+    if ((parsedSteps || []).length > 0 && !isMutedDirectionsRef.current) {
+      const first = parsedSteps[0];
+      const toSpeak = `Navigation started. ${formatDirection(first)}`;
+      // slight delay to allow UI settle / TTS initialization on some Android devices
       setTimeout(() => {
         if (!isMutedDirectionsRef.current) {
           Speech.stop();
@@ -235,17 +189,17 @@ export default function NavigationScreen() {
             onDone: () => setIsSpeaking(false),
             onStopped: () => setIsSpeaking(false),
           });
-          setSpokenSteps((prev) => new Set(prev).add(0));
-          lastSpokenRef.current[0] = Date.now();
+          setSpokenSteps(new Set([0]));
           setCurrentStepIndex(0);
         }
-      }, 250);
+      }, 300);
     } else {
+      // if no steps, still set currentStepIndex to 0
       setCurrentStepIndex(0);
     }
   };
 
-  // ---------------- location watching & proximity ----------------
+  // ------------------ Location tracking & proximity logic ------------------
   useEffect(() => {
     let subscriber: Location.LocationSubscription | null = null;
     (async () => {
@@ -267,10 +221,16 @@ export default function NavigationScreen() {
           setUserLocation(newCoords);
           setUserHeading(location.coords.heading || 0);
 
-          // center map
-          mapRef.current?.animateCamera({ center: newCoords, pitch: 0, heading: 0, altitude: 0, zoom: 17 });
+          // Center camera (optional)
+          mapRef.current?.animateCamera({
+            center: newCoords,
+            pitch: 0,
+            heading: 0,
+            altitude: 0,
+            zoom: 17,
+          });
 
-          // run proximity checks
+          // Proximity checks
           runProximityChecks(newCoords);
         }
       );
@@ -278,91 +238,77 @@ export default function NavigationScreen() {
 
     return () => subscriber?.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route, segmentSteps, segmentStepStartCoords, segmentGeoCoords, isNavigating]);
+  }, [route, routeGeoCoords, steps, stepStartCoords, currentStepIndex, isMutedDirections, isMutedDescription, isSpeaking]);
 
   const runProximityChecks = (userCoords: { latitude: number; longitude: number }) => {
     if (!route) return;
 
-    // directions for current segment
-    if (isNavigating && segmentStepStartCoords.length > 0 && segmentSteps.length > 0) {
+    // --- Directions proximity (real-time) ---
+    // If we have mapped stepStartCoords, find the next unspoken step index (starting at currentStepIndex)
+    if (stepStartCoords?.length > 0 && steps?.length > 0) {
+      // ensure current index valid
       let idx = currentStepIndex;
       if (idx < 0) idx = 0;
-      if (idx >= segmentSteps.length) idx = segmentSteps.length - 1;
+      if (idx >= steps.length) idx = steps.length - 1;
 
-      while (spokenSteps.has(idx) && idx + 1 < segmentSteps.length) idx++;
+      // find the next step not yet spoken
+      while (spokenSteps.has(idx) && idx + 1 < steps.length) idx++;
 
-      const stepCoord = segmentStepStartCoords[idx];
+      const stepCoord = stepStartCoords[idx];
       if (stepCoord) {
         const distToStep = getDistance(userCoords, stepCoord);
-        const now = Date.now();
-        const lastSpoken = lastSpokenRef.current[idx] || 0;
 
-        if (!isMutedDirectionsRef.current && !isSpeaking && (!spokenSteps.has(idx) || now - lastSpoken > STEP_COOLDOWN_MS)) {
-          const toSpeak = formatDirection(segmentSteps[idx]);
+        // speak proactively when within a reasonable radius
+        if (!isMutedDirectionsRef.current && !isSpeaking && !spokenSteps.has(idx)) {
+          // choose phrasing: pre-alert vs immediate
+          const toSpeak = formatDirection(steps[idx]);
           if (distToStep < PRE_SPEAK_DISTANCE) {
+            // speak now
             Speech.stop();
             setIsSpeaking(true);
             Speech.speak(toSpeak, {
               onDone: () => {
                 setIsSpeaking(false);
                 setSpokenSteps((prev) => new Set(prev).add(idx));
-                lastSpokenRef.current[idx] = Date.now();
+                // increment current step index so next iteration moves forward
                 setCurrentStepIndex(idx + 1);
               },
               onStopped: () => setIsSpeaking(false),
             });
+          } else {
+            // too far — do nothing yet
           }
         }
 
+        // if user actually reached near the exact step point, mark it and advance
         if (distToStep < STEP_DISTANCE_THRESHOLD && !spokenSteps.has(idx)) {
+          // speak shorter instruction if not already spoken (fallback)
           if (!isMutedDirectionsRef.current && !isSpeaking) {
-            const toSpeak = formatDirection(segmentSteps[idx]);
+            const toSpeak = formatDirection(steps[idx]);
             Speech.stop();
             setIsSpeaking(true);
             Speech.speak(toSpeak, {
               onDone: () => {
                 setIsSpeaking(false);
                 setSpokenSteps((prev) => new Set(prev).add(idx));
-                lastSpokenRef.current[idx] = Date.now();
                 setCurrentStepIndex(idx + 1);
               },
               onStopped: () => setIsSpeaking(false),
             });
           } else {
             setSpokenSteps((prev) => new Set(prev).add(idx));
-            lastSpokenRef.current[idx] = Date.now();
             setCurrentStepIndex(idx + 1);
           }
         }
       }
     }
 
-    // arrival at target landmark -> show description sheet (only for 2nd landmark onward)
-    const nodes = route?.result_path || [];
-    const targetLandmark = nodes[segmentIndex];
-    if (targetLandmark && userCoords && segmentIndex >= 1) {
-      const distToLandmark = getDistance(userCoords, { latitude: targetLandmark.Latitude, longitude: targetLandmark.Longitude });
-      if (distToLandmark < LANDMARK_ARRIVAL_THRESHOLD) {
-        // set active landmark to this index and show description sheet (auto)
-        setActiveLandmarkIndex(segmentIndex);
-        setShowDescriptionSheet(true);
-        // pause navigation for user exploration (stop directions TTS)
-        setIsNavigating(false);
-        Speech.stop();
-        setIsSpeaking(false);
-
-        if (!isMutedDirectionsRef.current) {
-          Speech.speak(`You have reached ${targetLandmark.Landmark}. Here's some info.`);
-        }
-      }
-    }
-
-    // landmark descriptions when approaching any landmark (but continue button logic controlled by index)
+    // --- Landmark proximity (unchanged) ---
     const updatedVisited = new Set(visitedLandmarks);
-    (route?.result_path || []).forEach((lm: any, i: number) => {
+    (route.result_path || []).forEach((lm: any, i: number) => {
       if (updatedVisited.has(i)) return;
       const dist = getDistance(userCoords, { latitude: lm.Latitude, longitude: lm.Longitude });
-      if (dist < LANDMARK_DESCRIPTION_THRESHOLD) {
+      if (dist < LANDMARK_DISTANCE_THRESHOLD) {
         updatedVisited.add(i);
         if (!isMutedDescriptionRef.current && !isSpeaking) {
           const desc = lm.Description || "";
@@ -373,6 +319,7 @@ export default function NavigationScreen() {
             setCurrentText(summary);
             setShowFull(false);
             setIsSpeaking(true);
+            setActiveLandmark(i);
 
             Speech.speak(summary, {
               onDone: () => {
@@ -395,82 +342,91 @@ export default function NavigationScreen() {
     setVisitedLandmarks(updatedVisited);
   };
 
-  // ---------------- marker tap handler ----------------
-  const handleMarkerPress = (index: number) => {
-    setActiveLandmarkIndex(index);
-    setShowDescriptionSheet(true);
+  // ------------------ UI handlers ------------------
+  const handleSpeak = (text: string, index: number) => {
+    setActiveLandmark(null);
+    setTimeout(() => setActiveLandmark(index), 10);
+    setFullText(text);
 
-    // speak summary only if allowed
-    if (!isMutedDescriptionRef.current && route?.result_path?.[index]?.Description) {
-      const summary = summarizeText(route.result_path[index].Description);
-      setFullText(route.result_path[index].Description);
-      setCurrentText(summary);
+    Speech.stop();
+    if (isMutedDescriptionRef.current) {
+      setCurrentText("");
       setShowFull(false);
-      Speech.stop();
-      setIsSpeaking(true);
-      Speech.speak(summary, {
-        onDone: () => { setIsSpeaking(false); setTimeout(() => setCurrentText(""), 400); },
-        onStopped: () => { setIsSpeaking(false); setCurrentText(""); },
-      });
-    }
-  };
-
-  // ---------------- UI handlers ----------------
-  const handleContinueFromSheet = async () => {
-    // mark visited
-    if (activeLandmarkIndex != null) {
-      setVisitedLandmarks((prev) => new Set(prev).add(activeLandmarkIndex));
-    }
-    setShowDescriptionSheet(false);
-
-    // if currently at last landmark -> finish
-    if (!route) return;
-    const nextIdx = segmentIndex + 1;
-    if (nextIdx >= (route.result_path || []).length) {
-      Speech.speak("You have completed all landmarks.");
-      setIsNavigating(false);
       return;
     }
-    setSegmentIndex(nextIdx);
-    await startSegment(nextIdx);
+
+    if (isSpeaking) return;
+
+    const summary = summarizeText(text);
+    setCurrentText(summary);
+    setShowFull(false);
+    setIsSpeaking(true);
+
+    Speech.speak(summary, {
+      onDone: () => {
+        setIsSpeaking(false);
+        setTimeout(() => {
+          setCurrentText("");
+          setShowFull(false);
+        }, 400);
+      },
+      onStopped: () => {
+        setIsSpeaking(false);
+        setCurrentText("");
+        setShowFull(false);
+      },
+    });
   };
 
-  const handleRepeat = () => {
-    if (segmentSteps?.[currentStepIndex]) {
-      const instr = formatDirection(segmentSteps[currentStepIndex]);
-      if (!isMutedDirectionsRef.current) {
-        Speech.stop();
-        setIsSpeaking(true);
-        Speech.speak(instr, { onDone: () => setIsSpeaking(false), onStopped: () => setIsSpeaking(false) });
-      }
-    }
+  const handleReadMore = () => {
+    if (!fullText) return;
+    Speech.stop();
+    if (isMutedDescriptionRef.current) return;
+
+    setShowFull(true);
+    setCurrentText(fullText);
+    setIsSpeaking(true);
+    Speech.speak(fullText, {
+      onDone: () => {
+        setIsSpeaking(false);
+        setTimeout(() => {
+          setCurrentText("");
+          setShowFull(false);
+        }, 400);
+      },
+      onStopped: () => {
+        setIsSpeaking(false);
+        setCurrentText("");
+        setShowFull(false);
+      },
+    });
   };
 
   const toggleDirectionsMute = () => {
-    setIsMutedDirections((p) => {
-      const n = !p;
-      if (n) { Speech.stop(); setIsSpeaking(false); }
-      return n;
+    setIsMutedDirections((prev) => {
+      const next = !prev;
+      if (next) {
+        Speech.stop();
+        setIsSpeaking(false);
+      }
+      return next;
     });
   };
+
   const toggleDescriptionMute = () => {
-    setIsMutedDescription((p) => {
-      const n = !p;
-      if (n) { Speech.stop(); setIsSpeaking(false); setCurrentText(""); setShowFull(false); }
-      return n;
+    setIsMutedDescription((prev) => {
+      const next = !prev;
+      if (next) {
+        Speech.stop();
+        setIsSpeaking(false);
+        setCurrentText("");
+        setShowFull(false);
+      }
+      return next;
     });
   };
 
-  // update nextLandmark and segment-level ETA when segmentIndex changes
-  useEffect(() => {
-    if (!route) return;
-    const idx = segmentIndex;
-    setNextLandmark(route.result_path?.[idx]?.Landmark || "");
-    startSegment(idx, route);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [segmentIndex]);
-
-  // caption fade animation
+  // caption fade
   useEffect(() => {
     Animated.timing(captionOpacity, {
       toValue: currentText === "" || isMutedDescription ? 0 : 1,
@@ -479,9 +435,7 @@ export default function NavigationScreen() {
     }).start();
   }, [currentText, isMutedDescription]);
 
-  const bottomSnapPoints = useMemo(() => ["18%", "38%"], []);
-
-  // Render guard
+  // ------------------ Render ------------------
   if (!route)
     return (
       <View style={styles.centered}>
@@ -489,44 +443,44 @@ export default function NavigationScreen() {
       </View>
     );
 
-  const totalLandmarks = (route.result_path || []).length;
-  const progress = Math.min(1, totalLandmarks === 0 ? 0 : (segmentIndex / totalLandmarks));
-
   return (
     <View style={{ flex: 1 }}>
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}
         initialRegion={{
-          latitude: route.result_path?.[0]?.Latitude ?? 12.9716,
-          longitude: route.result_path?.[0]?.Longitude ?? 77.5946,
+          latitude: coords?.[0]?.latitude ?? 12.9716,
+          longitude: coords?.[0]?.longitude ?? 77.5946,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         }}
         showsUserLocation={false}
       >
-        <Polyline coordinates={segmentGeoCoords.length ? segmentGeoCoords : coordsFromGeojson(route.route_geojson || route)} strokeWidth={4} strokeColor="#007AFF" />
+        <Polyline
+          coordinates={routeGeoCoords.length ? routeGeoCoords : coords}
+          strokeWidth={4}
+          strokeColor="blue"
+        />
 
         {(route?.result_path || []).map((lm: any, i: number) => (
           <Marker
             key={i}
             coordinate={{ latitude: lm.Latitude, longitude: lm.Longitude }}
             title={lm.Landmark}
-            onPress={() => handleMarkerPress(i)}
+            onPress={() => handleSpeak(lm.Description || "", i)}
           />
         ))}
 
         {userLocation && (
           <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 0.5 }} flat rotation={userHeading}>
-            <View style={{ transform: [{ rotate: `${userHeading}deg` }], alignItems: "center", justifyContent: "center" }}>
-              <View style={styles.userCircle} />
-              <FontAwesome name="location-arrow" size={26} color="#fff" style={{ position: "absolute" }} />
+            <View style={{ transform: [{ rotate: `${userHeading}deg` }] }}>
+              <FontAwesome name="location-arrow" size={40} color="#007AFF" />
             </View>
           </Marker>
         )}
       </MapView>
 
-      {/* top controls */}
+      {/* Mute controls */}
       <View style={styles.topControlsRow}>
         <TouchableOpacity onPress={toggleDirectionsMute} style={styles.iconButton}>
           <Ionicons name={isMutedDirections ? "volume-mute" : "volume-high"} size={36} color={isMutedDirections ? "gray" : "#007AFF"} />
@@ -539,64 +493,30 @@ export default function NavigationScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* progress bar */}
-      <View style={styles.progressContainer}>
-        <View style={[styles.progressBar, { width: `${Math.round(progress * 100)}%` }]} />
-        <Text style={styles.progressText}>{segmentIndex}/{totalLandmarks} completed</Text>
-      </View>
-
-      {/* caption for landmark description (small transient) */}
+      {/* Caption */}
       {currentText !== "" && (
         <Animated.View style={[styles.captionBox, { opacity: captionOpacity }]}>
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
             <Text style={styles.captionText}>{showFull ? currentText : summarizeText(currentText)}</Text>
-            {!showFull && <TouchableOpacity onPress={() => {
-              setShowFull(true);
-              setCurrentText(fullText);
-              Speech.stop();
-              Speech.speak(fullText, { onDone: () => setCurrentText(""), onStopped: () => setCurrentText("") });
-            }}><Text style={styles.readMoreText}> Read More</Text></TouchableOpacity>}
+            {!showFull && (
+              <TouchableOpacity onPress={handleReadMore}>
+                <Text style={styles.readMoreText}> Read More</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </Animated.View>
       )}
 
-      {/* bottom navigation sheet */}
-      <BottomSheet index={0} snapPoints={bottomSnapPoints} backgroundStyle={{ backgroundColor: "#f9f9f9" }}>
-        <BottomSheetView style={{ padding: 14 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: "#222" }}>
-            {route.result_path?.[segmentIndex]?.Landmark ? `To: ${route.result_path[segmentIndex].Landmark}` : "Navigation"}
-          </Text>
-
-          <Text style={{ marginTop: 8, color: "#007AFF", fontSize: 15, fontWeight: "600" }}>
-            {segmentSteps?.[currentStepIndex]?.instruction || "Follow the route to the next landmark"}
-          </Text>
-
-          {route.result_path?.[segmentIndex + 1] && <Text style={{ marginTop: 6, color: "#666" }}>Next: {route.result_path[segmentIndex + 1].Landmark}</Text>}
-
-          {etaSeconds != null && <Text style={{ marginTop: 6, color: "#666" }}>ETA: {Math.max(1, Math.round(etaSeconds / 60))} min</Text>}
-
-          <View style={{ flexDirection: "row", marginTop: 12, gap: 10 }}>
-            <TouchableOpacity style={[styles.sheetButton, { backgroundColor: "#fff", borderWidth: 1, borderColor: "#ddd" }]} onPress={() => setShowDirectionsModal(true)}>
-              <Text style={{ color: "#007AFF", fontWeight: "700" }}>View Full Directions</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.sheetButton, { backgroundColor: "#007AFF" }]} onPress={handleRepeat}>
-              <Text style={{ color: "white", fontWeight: "700" }}>Repeat</Text>
-            </TouchableOpacity>
-          </View>
-        </BottomSheetView>
-      </BottomSheet>
-
-      {/* all directions modal */}
+      {/* Directions modal (optional small list) */}
       {showDirectionsModal && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>All Directions (segment)</Text>
+            <Text style={styles.modalTitle}>All Directions</Text>
             <ScrollView style={{ maxHeight: "75%" }}>
-              {(segmentSteps || []).map((dir: any, index: number) => (
+              {(steps || []).map((dir: any, index: number) => (
                 <View key={index} style={styles.directionRow}>
                   <Text style={styles.directionStep}>{index + 1}. {dir.instruction || dir}</Text>
-                  {dir.distance != null && <Text style={styles.directionDistance}>{Math.round(dir.distance)} m</Text>}
+                  {dir.distance != null && (<Text style={styles.directionDistance}>{Math.round(dir.distance)} m</Text>)}
                 </View>
               ))}
             </ScrollView>
@@ -606,66 +526,31 @@ export default function NavigationScreen() {
           </View>
         </View>
       )}
-
-      {/* DESCRIPTION SHEET (appears when tapping or entering proximity for landmark >= index 1 shows continue) */}
-      <Modal visible={showDescriptionSheet && activeLandmarkIndex != null} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>{route?.result_path?.[activeLandmarkIndex!]?.Landmark}</Text>
-            <ScrollView style={{ maxHeight: "55%" }}>
-              <Text style={{ marginBottom: 12 }}>{route?.result_path?.[activeLandmarkIndex!]?.Description || "No description available."}</Text>
-              <Text style={{ fontSize: 12, color: "#666" }}>{`Coordinates: ${route?.result_path?.[activeLandmarkIndex!]?.Latitude}, ${route?.result_path?.[activeLandmarkIndex!]?.Longitude}`}</Text>
-            </ScrollView>
-
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 12 }}>
-              <TouchableOpacity style={[styles.closeButton, { backgroundColor: "#eee", width: "48%" }]} onPress={() => setShowDescriptionSheet(false)}>
-                <Text style={{ color: "#333", textAlign: "center", fontWeight: "700" }}>Close</Text>
-              </TouchableOpacity>
-
-              {/* show Continue only if within proximity AND landmark index >= 1 */}
-              <TouchableOpacity
-                style={[styles.closeButton, { backgroundColor: (activeLandmarkIndex != null && userLocation && activeLandmarkIndex >= 1 && getDistance(userLocation, { latitude: route.result_path[activeLandmarkIndex].Latitude, longitude: route.result_path[activeLandmarkIndex].Longitude }) <= LANDMARK_ARRIVAL_THRESHOLD) ? "#007AFF" : "#ccc", width: "48%" }]}
-                onPress={() => {
-                  // only allow continue if allowed
-                  if (!userLocation || activeLandmarkIndex == null) return;
-                  const can = activeLandmarkIndex >= 1 && getDistance(userLocation, { latitude: route.result_path[activeLandmarkIndex].Latitude, longitude: route.result_path[activeLandmarkIndex].Longitude }) <= LANDMARK_ARRIVAL_THRESHOLD;
-                  if (can) handleContinueFromSheet();
-                }}
-                disabled={!(activeLandmarkIndex != null && userLocation && activeLandmarkIndex >= 1 && getDistance(userLocation, { latitude: route.result_path[activeLandmarkIndex].Latitude, longitude: route.result_path[activeLandmarkIndex].Longitude }) <= LANDMARK_ARRIVAL_THRESHOLD)}
-              >
-                <Text style={{ color: "white", textAlign: "center", fontWeight: "700" }}>{(activeLandmarkIndex != null && userLocation && activeLandmarkIndex >= 1 && getDistance(userLocation, { latitude: route.result_path[activeLandmarkIndex].Latitude, longitude: route.result_path[activeLandmarkIndex].Longitude }) <= LANDMARK_ARRIVAL_THRESHOLD) ? "Continue" : "Move closer to continue"}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
 
-// ---------- styles ----------
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   topControlsRow: {
     position: "absolute",
     top: Platform.OS === "ios" ? 50 : 30,
-    left: 12,
-    right: 12,
+    left: 20,
+    right: 20,
     flexDirection: "row",
     justifyContent: "space-between",
-    zIndex: 60,
+    zIndex: 30,
   },
   iconButton: { alignItems: "center" },
   iconLabel: { fontSize: 12, color: "#444", marginTop: 4 },
   captionBox: {
     position: "absolute",
-    bottom: 160,
+    bottom: 40,
     alignSelf: "center",
     width: "90%",
     backgroundColor: "rgba(0,0,0,0.78)",
     padding: 12,
     borderRadius: 12,
-    zIndex: 60,
   },
   captionText: { color: "white", fontSize: 16 },
   readMoreText: { color: "#007AFF", fontWeight: "bold", marginLeft: 6 },
@@ -675,18 +560,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 80,
+    zIndex: 40,
   },
   modalBox: { width: "90%", backgroundColor: "white", borderRadius: 12, padding: 16, maxHeight: "80%" },
   modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 12, textAlign: "center" },
   directionRow: { flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 1, borderColor: "#ddd", paddingVertical: 6 },
   directionStep: { fontSize: 14, color: "#333", flex: 1, marginRight: 10 },
   directionDistance: { fontSize: 13, color: "#666" },
-  closeButton: { padding: 10, borderRadius: 8, marginTop: 12, alignSelf: "center", width: "48%" },
+  closeButton: { backgroundColor: "#007AFF", padding: 10, borderRadius: 8, marginTop: 12, alignSelf: "center", width: "40%" },
   closeButtonText: { color: "white", textAlign: "center", fontWeight: "bold" },
-  progressContainer: { position: "absolute", top: Platform.OS === "ios" ? 110 : 90, left: 14, right: 14, zIndex: 60 },
-  progressBar: { height: 6, backgroundColor: "#007AFF", borderRadius: 4, width: "0%" },
-  progressText: { textAlign: "center", marginTop: 6, color: "#444", fontSize: 12 },
-  userCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#007AFF", justifyContent: "center", alignItems: "center", opacity: 0.95 },
-  sheetButton: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", flex: 1 },
+  readMoreTextSmall: { color: "#007AFF", marginLeft: 8 },
+  arrowContainer: { alignItems: "center", justifyContent: "center", width: 0, height: 0, transform: [{ rotate: "45deg" }] },
+  arrowShape: { width: 0, height: 0, borderLeftWidth: 15, borderRightWidth: 15, borderBottomWidth: 40, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: "#007AFF", borderRadius: 2 },
 });
