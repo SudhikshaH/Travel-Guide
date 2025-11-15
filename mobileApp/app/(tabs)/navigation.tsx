@@ -6,7 +6,11 @@ import * as Speech from "expo-speech";
 import { useLocalSearchParams } from "expo-router";
 import { Ionicons, FontAwesome } from "@expo/vector-icons";
 
+<<<<<<< HEAD
 const API_BASE = "http://envtrail.eba-bgcvjite.ap-south-1.elasticbeanstalk.com/navigation"; // Flask server
+=======
+const API_BASE = "http://abc.168.29.xx:5000"; // Flask server
+>>>>>>> dea4ca47d689c2b10e73d706b9ae01e30e17fca2
 
 export default function NavigationScreen() {
   const { routeData } = useLocalSearchParams();
