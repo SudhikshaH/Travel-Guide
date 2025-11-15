@@ -1,0 +1,8 @@
+Flask==3.0.0
+pymongo==4.6.1
+geopy==2.3.0
+openrouteservice==2.3.0
+shapely==2.0.7
+requests==2.31.0
+gunicorn==20.1.0
+Flask-Cors==3.0.10
